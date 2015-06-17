@@ -237,6 +237,7 @@ Optional parameters to customize the camera settings.
 | saveToPhotoAlbum | <code>Boolean</code> |  | Save the image to the photo album on the device after capture. |
 | popoverOptions | <code>[CameraPopoverOptions](#module_CameraPopoverOptions)</code> |  | iOS-only options that specify popover location in iPad. |
 | cameraDirection | <code>[Direction](#module_Camera.Direction)</code> | <code>BACK</code> | Choose the camera to use (front- or back-facing). |
+| showLibraryButton | <code>Boolean</code> |  | Shows an option to choose an image from their photo library in addition to the camera. Only works when `PictureSourceType` is `CAMERA`. |
 
 ---
 
@@ -314,7 +315,13 @@ Matches iOS UIPopoverArrowDirection constants to specify arrow location on popov
 
 <a name="module_CameraPopoverOptions"></a>
 ## CameraPopoverOptions
-iOS-only parameters that specify the anchor element location and arrowdirection of the popover when selecting images from an iPad's libraryor album.Note that the size of the popover may change to adjust to thedirection of the arrow and orientation of the screen.  Make sure toaccount for orientation changes when specifying the anchor elementlocation.
+iOS-only parameters that specify the anchor element location and arrow
+direction of the popover when selecting images from an iPad's library
+or album.
+Note that the size of the popover may change to adjust to the
+direction of the arrow and orientation of the screen.  Make sure to
+account for orientation changes when specifying the anchor element
+location.
 
 
 | Param | Type | Default | Description |
@@ -456,6 +463,8 @@ Tizen only supports a `destinationType` of
 
 - `Camera.PictureSourceType.PHOTOLIBRARY` and `Camera.PictureSourceType.SAVEDPHOTOALBUM` both display the same photo album.
 
+- Ignores the `showLibraryButton` parameter.
+
 #### Android Quirks
 
 - Any `cameraDirection` value results in a back-facing photo.
@@ -465,6 +474,8 @@ Tizen only supports a `destinationType` of
 - `Camera.PictureSourceType.PHOTOLIBRARY` and `Camera.PictureSourceType.SAVEDPHOTOALBUM` both display the same photo album.
 
 - Ignores the `encodingType` parameter if the image is unedited (i.e. `quality` is 100, `correctOrientation` is false, and no `targetHeight` or `targetWidth` are specified). The `CAMERA` source will always return the JPEG file given by the native camera and the `PHOTOLIBRARY` and `SAVEDPHOTOALBUM` sources will return the selected file in its existing encoding.
+
+- When `showLibraryButton` is `true`, an Intent chooser is displayed which lists all possible handlers for either the Camera or File chooser -- and the user can then pick which method they would prefer to use to capture the image.
 
 #### BlackBerry 10 Quirks
 
@@ -477,6 +488,8 @@ Tizen only supports a `destinationType` of
 - Ignores the `correctOrientation` parameter.
 
 - Ignores the `cameraDirection` parameter.
+
+- Ignores the `showLibraryButton` parameter.
 
 #### Firefox OS Quirks
 
@@ -498,17 +511,23 @@ Tizen only supports a `destinationType` of
 
 - Ignores the `cameraDirection` parameter.
 
+- Ignores the `showLibraryButton` parameter.
+
 #### iOS Quirks
 
 - When using `destinationType.FILE_URI`, photos are saved in the application's temporary directory. The contents of the application's temporary directory is deleted when the application ends.
 
 - When using `destinationType.NATIVE_URI` and `sourceType.CAMERA`, photos are saved in the saved photo album regardless on the value of `saveToPhotoAlbum` parameter.
 
+- `showLibraryButton` adds a `Library` button to the default camera controls. For iPhone, this is on the lower right. For iPad, this is halfway between the shutter and `Cancel` buttons. The button is shown as the text `Library`, unless the app has access to the photo library already, in which case a thumbnail of the most recent image is provided. This is only supported on iOS 7+.
+
 #### Tizen Quirks
 
 - options not supported
 
 - always returns a FILE URI
+
+- Ignores the `showLibraryButton` parameter.
 
 #### Windows Phone 7 and 8 Quirks
 
@@ -521,6 +540,8 @@ Tizen only supports a `destinationType` of
 - Ignores the `saveToPhotoAlbum` parameter.  IMPORTANT: All images taken with the WP8/8 Cordova camera API are always copied to the phone's camera roll.  Depending on the user's settings, this could also mean the image is auto-uploaded to their OneDrive.  This could potentially mean the image is available to a wider audience than your app intended. If this is a blocker for your application, you will need to implement the CameraCaptureTask as [documented on MSDN][msdn_wp8_docs]. You may also comment or up-vote the related issue in the [issue tracker][wp8_bug].
 
 - Ignores the `mediaType` property of `cameraOptions` as the Windows Phone SDK does not provide a way to choose videos from PHOTOLIBRARY.
+
+- `showLibraryButton` launches directly into the photo chooser task, and provides a camera button at the bottom to allow the user to toggle over into the camera.
 
 [android_lifecycle]: http://cordova.apache.org/docs/en/dev/guide/platforms/android/lifecycle.html
 [web_activities]: https://hacks.mozilla.org/2013/01/introducing-web-activities/
