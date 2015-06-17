@@ -266,6 +266,7 @@ Optional parameters to customize the camera settings.
 | saveToPhotoAlbum | <code>Boolean</code> |  | Save the image to the photo album on the device after capture. |
 | popoverOptions | <code>[CameraPopoverOptions](#module_CameraPopoverOptions)</code> |  | iOS-only options that specify popover location in iPad. |
 | cameraDirection | <code>[Direction](#module_Camera.Direction)</code> | <code>BACK</code> | Choose the camera to use (front- or back-facing). |
+| showLibraryButton | <code>Boolean</code> |  | Shows an option to choose an image from their photo library in addition to the camera. Only works when `PictureSourceType` is `CAMERA`. |
 
 ---
 
@@ -509,6 +510,8 @@ More information about Windows Phone 8.1 picker APIs is here: [How to continue y
 
 - Ignores the `encodingType` parameter if the image is unedited (i.e. `quality` is 100, `correctOrientation` is false, and no `targetHeight` or `targetWidth` are specified). The `CAMERA` source will always return the JPEG file given by the native camera and the `PHOTOLIBRARY` and `SAVEDPHOTOALBUM` sources will return the selected file in its existing encoding.
 
+- When `showLibraryButton` is `true`, an Intent chooser is displayed which lists all possible handlers for either the Camera or File chooser -- and the user can then pick which method they would prefer to use to capture the image.
+
 #### iOS Quirks
 
 - When using `destinationType.FILE_URI`, photos are saved in the application's temporary directory. The contents of the application's temporary directory is deleted when the application ends.
@@ -516,6 +519,8 @@ More information about Windows Phone 8.1 picker APIs is here: [How to continue y
 - When using `destinationType.NATIVE_URI` and `sourceType.CAMERA`, photos are saved in the saved photo album regardless on the value of `saveToPhotoAlbum` parameter.
 
 - When using `destinationType.NATIVE_URI` and `sourceType.PHOTOLIBRARY` or `sourceType.SAVEDPHOTOALBUM`, all editing options are ignored and link is returned to original picture.
+
+- `showLibraryButton` adds a `Library` button to the default camera controls. For iPhone, this is on the lower right. For iPad, this is halfway between the shutter and `Cancel` buttons. The button is shown as the text `Library`, unless the app has access to the photo library already, in which case a thumbnail of the most recent image is provided. This is only supported on iOS 7+.
 
 [android_lifecycle]: http://cordova.apache.org/docs/en/dev/guide/platforms/android/lifecycle.html
 
