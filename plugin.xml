@@ -69,7 +69,14 @@
                   android:resource="@xml/camera_provider_paths"/>
           </provider>
         </config-file>
-
+	
+        <config-file target="res/values/strings.xml" parent="/resources">
+            <string name="plugin_camera_source_chooser">"Select Source"</string>
+            <string name="plugin_camera_get_picture">Get Picture</string>
+            <string name="plugin_camera_get_video">Get Video</string>
+            <string name="plugin_camera_get_all">Get All</string>
+        </config-file>
+	
         <source-file src="src/android/CameraLauncher.java" target-dir="src/org/apache/cordova/camera" />
         <source-file src="src/android/CordovaUri.java" target-dir="src/org/apache/cordova/camera" />
         <source-file src="src/android/FileHelper.java" target-dir="src/org/apache/cordova/camera" />

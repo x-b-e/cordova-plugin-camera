@@ -27,7 +27,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 import org.apache.cordova.BuildHelper;
 import org.apache.cordova.CallbackContext;
@@ -43,9 +45,11 @@ import android.Manifest;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
+import android.content.ComponentName;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ResolveInfo;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.CompressFormat;
@@ -58,6 +62,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Parcelable;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
@@ -91,9 +96,6 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     private static final String PNG_EXTENSION = ".png";
     private static final String PNG_MIME_TYPE = "image/png";
     private static final String JPEG_MIME_TYPE = "image/jpeg";
-    private static final String GET_PICTURE = "Get Picture";
-    private static final String GET_VIDEO = "Get Video";
-    private static final String GET_All = "Get All";
 
     public static final int PERMISSION_DENIED_ERROR = 20;
     public static final int TAKE_PIC_SEC = 0;
@@ -103,6 +105,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
     //Where did this come from?
     private static final int CROP_CAMERA = 100;
+    private static final int SOURCE_CHOOSER = 200;
 
     private static final String TIME_FORMAT = "yyyyMMdd_HHmmss";
 
@@ -118,6 +121,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     private boolean correctOrientation;     // Should the pictures orientation be corrected
     private boolean orientationCorrected;   // Has the picture's orientation been corrected
     private boolean allowEdit;              // Should we allow the user to crop the image.
+    private boolean showLibraryButton;      // Should we allow the user to choose from the library as well as the camera.
 
     protected final static String[] permissions = { Manifest.permission.CAMERA, Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE };
 
@@ -146,28 +150,9 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         this.applicationId = (String) BuildHelper.getBuildConfigValue(cordova.getActivity(), "APPLICATION_ID");
         this.applicationId = preferences.getString("applicationId", this.applicationId);
 
-
         if (action.equals("takePicture")) {
-            this.srcType = CAMERA;
-            this.destType = FILE_URI;
-            this.saveToPhotoAlbum = false;
-            this.targetHeight = 0;
-            this.targetWidth = 0;
-            this.encodingType = JPEG;
-            this.mediaType = PICTURE;
-            this.mQuality = 50;
-
-            //Take the values from the arguments if they're not already defined (this is tricky)
-            this.destType = args.getInt(1);
-            this.srcType = args.getInt(2);
-            this.mQuality = args.getInt(0);
-            this.targetWidth = args.getInt(3);
-            this.targetHeight = args.getInt(4);
-            this.encodingType = args.getInt(5);
-            this.mediaType = args.getInt(6);
-            this.allowEdit = args.getBoolean(7);
-            this.correctOrientation = args.getBoolean(8);
-            this.saveToPhotoAlbum = args.getBoolean(9);
+            // Process the configuration arguments
+            processConfiguration(args);
 
             // If the user specifies a 0 or smaller width/height
             // make it -1 so later comparisons succeed
@@ -187,7 +172,12 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
             try {
                 if (this.srcType == CAMERA) {
-                    this.callTakePicture(destType, encodingType);
+                    if (this.showLibraryButton == true) {
+                        this.showIntentChooser(destType, encodingType);
+                    }
+                    else {
+                        this.callTakePicture(destType, encodingType);
+                    }
                 }
                 else if ((this.srcType == PHOTOLIBRARY) || (this.srcType == SAVEDPHOTOALBUM)) {
                     // FIXME: Stop always requesting the permission
@@ -219,6 +209,24 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     // LOCAL METHODS
     //--------------------------------------------------------------------------
 
+    private void processConfiguration(JSONArray args) throws JSONException {
+        if (args == null) {
+            throw new JSONException("no configuration object passed");
+        }
+
+        this.srcType = args.optInt(2, CAMERA);
+        this.destType = args.optInt(1, FILE_URI);
+        this.mQuality = args.optInt(0, 80);
+        this.targetWidth = args.optInt(3, 0);
+        this.targetHeight = args.optInt(4, 0);
+        this.encodingType = args.optInt(5, JPEG);
+        this.mediaType = args.optInt(6, PICTURE);
+        this.allowEdit = args.optBoolean(7, false);
+        this.correctOrientation = args.optBoolean(8, false);
+        this.saveToPhotoAlbum = args.optBoolean(9, false);
+        this.showLibraryButton = args.optBoolean(12, false);
+    }
+
     private String getTempDirectoryPath() {
         File cache = null;
 
@@ -234,6 +242,121 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         // Create the cache directory if it doesn't exist
         cache.mkdirs();
         return cache.getAbsolutePath();
+    }
+
+    /**
+     * Helper to retrieve a string from the resources.
+     *
+     * @param resourceName      The name of the string resource to load.
+     */
+    private String getStringResource(String resourceName) {
+        android.content.res.Resources activityRes = cordova.getActivity().getResources();
+        int stringResId = activityRes.getIdentifier(resourceName, "string", cordova.getActivity().getPackageName());
+        return activityRes.getString(stringResId);
+    }
+
+    /**
+     * Shows an Intent chooser with all camera and gallery options, so the
+     * user can choose which method they want to use to retrieve the image.
+     *
+     * @param returnType        The expected return type of the file.
+     * @param encodingType      Set the encoding of image to return.
+     */
+    public void showIntentChooser(int returnType, int encodingType) {
+        if (this.cordova == null) return;
+
+        final PackageManager mPm = this.cordova.getActivity().getPackageManager();
+
+        // Store the Camera Intents
+        final Intent captureIntent = getCameraIntent(encodingType);
+        final List<Intent> cameraIntents = new ArrayList<Intent>();
+
+        // Use the Intent to find all apps that support it
+        final List<ResolveInfo> cameraResolveInfoList = mPm.queryIntentActivities(captureIntent, 0);
+        for(ResolveInfo res : cameraResolveInfoList) {
+            // Create an intent with the specific camera app
+            final Intent intent = new Intent(captureIntent);
+            intent.setComponent(new ComponentName(res.activityInfo.packageName, res.activityInfo.name));
+            intent.setPackage(res.activityInfo.packageName);
+            intent.putExtra(MediaStore.EXTRA_OUTPUT, this.imageUri);
+            cameraIntents.add(intent);
+        }
+
+        // Store the Gallery intents
+        final Intent galleryIntent = getGalleryIntent(encodingType);
+
+        // Create a chooser Intent to allow the user to pick
+        final Intent chooserIntent = Intent.createChooser(galleryIntent, getStringResource("plugin_camera_source_chooser"));
+
+        // Add the camera intents as extra intents in the chooser
+        chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, cameraIntents.toArray(new Parcelable[cameraIntents.size()]));
+
+        this.cordova.startActivityForResult(this, chooserIntent, SOURCE_CHOOSER + returnType);
+    }
+
+    /**
+     * Returns an Intent to take a picture via the camera.
+     *
+     * @param encodingType      Set the encoding of image to return.
+     */
+    private Intent getCameraIntent(int encodingType) {
+        // Save the number of images currently on disk for later
+        this.numPics = queryImgDB(whichContentStore()).getCount();
+
+        // Let's use the intent and see what happens
+        final Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+
+        // Specify file so that large image is captured and returned
+        final File photo = createCaptureFile(encodingType);
+        this.imageUri = Uri.fromFile(photo);
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, this.imageUri);
+
+        return intent;
+    }
+
+    /**
+     * Returns an Intent to retrieve a file from the gallery.
+     *
+     * @param encodingType      Set the encoding of image to return.
+     */
+    private Intent getGalleryIntent(int encodingType) {
+        Intent intent = new Intent();
+        croppedUri = null;
+        if (this.mediaType == PICTURE) {
+            intent.setType("image/*");
+            if (this.allowEdit) {
+                intent.setAction(Intent.ACTION_PICK);
+                intent.putExtra("crop", "true");
+                if (targetWidth > 0) {
+                    intent.putExtra("outputX", targetWidth);
+                }
+                if (targetHeight > 0) {
+                    intent.putExtra("outputY", targetHeight);
+                }
+                if (targetHeight > 0 && targetWidth > 0 && targetWidth == targetHeight) {
+                    intent.putExtra("aspectX", 1);
+                    intent.putExtra("aspectY", 1);
+                }
+                File photo = createCaptureFile(encodingType);
+                croppedUri = Uri.fromFile(photo);
+                intent.putExtra(MediaStore.EXTRA_OUTPUT, croppedUri);
+            } else {
+                intent.setAction(Intent.ACTION_GET_CONTENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+            }
+        } else if (this.mediaType == VIDEO) {
+            intent.setType("video/*");
+            intent.setAction(Intent.ACTION_GET_CONTENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+        } else if (this.mediaType == ALLMEDIA) {
+            // I wanted to make the type 'image/*, video/*' but this does not work on all versions
+            // of android so I had to go with the wildcard search.
+            intent.setType("*/*");
+            intent.setAction(Intent.ACTION_GET_CONTENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+        }
+
+        return intent;
     }
 
     /**
@@ -295,8 +418,8 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         // Save the number of images currently on disk for later
         this.numPics = queryImgDB(whichContentStore()).getCount();
 
-        // Let's use the intent and see what happens
-        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        // Let's get the camera intent
+        Intent intent = getCameraIntent(encodingType);
 
         // Specify file so that large image is captured and returned
         File photo = createCaptureFile(encodingType);
@@ -369,44 +492,16 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     // TODO: Images selected from SDCARD don't display correctly, but from CAMERA ALBUM do!
     // TODO: Images from kitkat filechooser not going into crop function
     public void getImage(int srcType, int returnType, int encodingType) {
-        Intent intent = new Intent();
-        String title = GET_PICTURE;
-        croppedUri = null;
-        if (this.mediaType == PICTURE) {
-            intent.setType("image/*");
-            if (this.allowEdit) {
-                intent.setAction(Intent.ACTION_PICK);
-                intent.putExtra("crop", "true");
-                if (targetWidth > 0) {
-                    intent.putExtra("outputX", targetWidth);
-                }
-                if (targetHeight > 0) {
-                    intent.putExtra("outputY", targetHeight);
-                }
-                if (targetHeight > 0 && targetWidth > 0 && targetWidth == targetHeight) {
-                    intent.putExtra("aspectX", 1);
-                    intent.putExtra("aspectY", 1);
-                }
-                File photo = createCaptureFile(JPEG);
-                croppedUri = Uri.fromFile(photo);
-                intent.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, croppedUri);
-            } else {
-                intent.setAction(Intent.ACTION_GET_CONTENT);
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
-            }
-        } else if (this.mediaType == VIDEO) {
-            intent.setType("video/*");
-            title = GET_VIDEO;
-            intent.setAction(Intent.ACTION_GET_CONTENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-        } else if (this.mediaType == ALLMEDIA) {
-            // I wanted to make the type 'image/*, video/*' but this does not work on all versions
-            // of android so I had to go with the wildcard search.
-            intent.setType("*/*");
-            title = GET_All;
-            intent.setAction(Intent.ACTION_GET_CONTENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
+        Intent intent = getGalleryIntent(encodingType);
+        String title = getStringResource("plugin_camera_get_picture");
+
+       if (this.mediaType == VIDEO) {
+            title = getStringResource("plugin_camera_get_video");
         }
+        else if (this.mediaType == ALLMEDIA) {
+            title = getStringResource("plugin_camera_get_all");
+        }
+
         if (this.cordova != null) {
             this.cordova.startActivityForResult((CordovaPlugin) this, Intent.createChooser(intent,
                     new String(title)), (srcType + 1) * 16 + returnType + 1);
@@ -414,56 +509,56 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     }
 
 
-  /**
-   * Brings up the UI to perform crop on passed image URI
-   *
-   * @param picUri
-   */
-  private void performCrop(Uri picUri, int destType, Intent cameraIntent) {
-    try {
-        Intent cropIntent = new Intent("com.android.camera.action.CROP");
-        // indicate image type and Uri
-        cropIntent.setDataAndType(picUri, "image/*");
-        // set crop properties
-        cropIntent.putExtra("crop", "true");
+	/**
+    * Brings up the UI to perform crop on passed image URI
+    *
+    * @param picUri
+    */
+    private void performCrop(Uri picUri, int destType, Intent cameraIntent) {
+		try {
+			Intent cropIntent = new Intent("com.android.camera.action.CROP");
+			// indicate image type and Uri
+			cropIntent.setDataAndType(picUri, "image/*");
+			// set crop properties
+			cropIntent.putExtra("crop", "true");
 
 
-        // indicate output X and Y
-        if (targetWidth > 0) {
-          cropIntent.putExtra("outputX", targetWidth);
-        }
-        if (targetHeight > 0) {
-          cropIntent.putExtra("outputY", targetHeight);
-        }
-        if (targetHeight > 0 && targetWidth > 0 && targetWidth == targetHeight) {
-          cropIntent.putExtra("aspectX", 1);
-          cropIntent.putExtra("aspectY", 1);
-        }
-        // create new file handle to get full resolution crop
-        croppedUri = Uri.fromFile(createCaptureFile(this.encodingType, System.currentTimeMillis() + ""));
-        cropIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        cropIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-        cropIntent.putExtra("output", croppedUri);
+			// indicate output X and Y
+			if (targetWidth > 0) {
+			        cropIntent.putExtra("outputX", targetWidth);
+			}
+			if (targetHeight > 0) {
+			        cropIntent.putExtra("outputY", targetHeight);
+			}
+			if (targetHeight > 0 && targetWidth > 0 && targetWidth == targetHeight) {
+			        cropIntent.putExtra("aspectX", 1);
+			        cropIntent.putExtra("aspectY", 1);
+			}
+			// create new file handle to get full resolution crop
+			croppedUri = Uri.fromFile(createCaptureFile(this.encodingType, System.currentTimeMillis() + ""));
+			cropIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+			cropIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+			cropIntent.putExtra("output", croppedUri);
 
 
-        // start the activity - we handle returning in onActivityResult
+			// start the activity - we handle returning in onActivityResult
 
-        if (this.cordova != null) {
-            this.cordova.startActivityForResult((CordovaPlugin) this,
-                cropIntent, CROP_CAMERA + destType);
-        }
-    } catch (ActivityNotFoundException anfe) {
-      LOG.e(LOG_TAG, "Crop operation not supported on this device");
-      try {
-          processResultFromCamera(destType, cameraIntent);
-      }
-      catch (IOException e)
-      {
-          e.printStackTrace();
-          LOG.e(LOG_TAG, "Unable to write to file");
-      }
-    }
-  }
+			if (this.cordova != null) {
+				this.cordova.startActivityForResult((CordovaPlugin) this,
+				    cropIntent, CROP_CAMERA + destType);
+			}
+		} catch (ActivityNotFoundException anfe) {
+			LOG.e(LOG_TAG, "Crop operation not supported on this device");
+	    	try {
+				processResultFromCamera(destType, cameraIntent);
+	        }
+	        catch (IOException e)
+	        {
+	        	e.printStackTrace();
+	        	LOG.e(LOG_TAG, "Unable to write to file");
+	        }
+	    }
+	}
 
     /**
      * Applies all needed transformation to the image received from the camera.
@@ -776,41 +871,43 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         int srcType = (requestCode / 16) - 1;
         int destType = (requestCode % 16) - 1;
 
-        // If Camera Crop
-        if (requestCode >= CROP_CAMERA) {
-            if (resultCode == Activity.RESULT_OK) {
+        // If the original activity was the source chooser, figure out the correct srcType and destType
+        if (requestCode >= SOURCE_CHOOSER) {
+            destType = requestCode - SOURCE_CHOOSER;
 
+            // Default to Camera, since that was the original reason the chooser was shown
+            srcType = CAMERA;
+            if (intent != null && !MediaStore.ACTION_IMAGE_CAPTURE.equals(intent.getAction()) && intent.getData() != null) {
+                srcType = PHOTOLIBRARY;
+            }
+
+            // Rewrite the requestCode
+            requestCode = (srcType + 1) * 16 + destType + 1;
+        }
+
+        // If the activity succeeded...
+        if (resultCode == Activity.RESULT_OK) {
+            // If this was a Camera Crop activity
+            if (requestCode >= CROP_CAMERA) {
                 // Because of the inability to pass through multiple intents, this hack will allow us
                 // to pass arcane codes back.
                 destType = requestCode - CROP_CAMERA;
                 try {
-                    processResultFromCamera(destType, intent);
+                     processResultFromCamera(destType, intent);
                 } catch (IOException e) {
                     e.printStackTrace();
                     LOG.e(LOG_TAG, "Unable to write to file");
                 }
-
-            }// If cancelled
-            else if (resultCode == Activity.RESULT_CANCELED) {
-                this.failPicture("No Image Selected");
             }
-
-            // If something else
-            else {
-                this.failPicture("Did not complete!");
-            }
-        }
-        // If CAMERA
-        else if (srcType == CAMERA) {
-            // If image available
-            if (resultCode == Activity.RESULT_OK) {
+            // If this was a Camera activity
+            else if (srcType == CAMERA) {
                 try {
-                    if (this.allowEdit) {
-                        Uri tmpFile = FileProvider.getUriForFile(cordova.getActivity(),
-                                applicationId + ".provider",
-                                createCaptureFile(this.encodingType));
+                    if (this.allowEdit)
+                    {
+                        Uri tmpFile = Uri.fromFile(createCaptureFile(this.encodingType));
                         performCrop(tmpFile, destType, intent);
-                    } else {
+                    }
+                    else {
                         this.processResultFromCamera(destType, intent);
                     }
                 } catch (IOException e) {
@@ -818,32 +915,32 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                     this.failPicture("Error capturing image.");
                 }
             }
-
-            // If cancelled
-            else if (resultCode == Activity.RESULT_CANCELED) {
-                this.failPicture("No Image Selected");
-            }
-
-            // If something else
-            else {
-                this.failPicture("Did not complete!");
+            // If retrieving photo from library
+            else if ((srcType == PHOTOLIBRARY) || (srcType == SAVEDPHOTOALBUM)) {
+                if (intent != null) {
+                    final Intent i = intent;
+                    final int finalDestType = destType;
+                    cordova.getThreadPool().execute(new Runnable() {
+                        public void run() {
+                            processResultFromGallery(finalDestType, i);
+                        }
+                    });
+                }
+                else {
+                    this.failPicture("Error selecting image.");
+                }
             }
         }
-        // If retrieving photo from library
-        else if ((srcType == PHOTOLIBRARY) || (srcType == SAVEDPHOTOALBUM)) {
-            if (resultCode == Activity.RESULT_OK && intent != null) {
-                final Intent i = intent;
-                final int finalDestType = destType;
-                cordova.getThreadPool().execute(new Runnable() {
-                    public void run() {
-                        processResultFromGallery(finalDestType, i);
-                    }
-                });
-            } else if (resultCode == Activity.RESULT_CANCELED) {
-                this.failPicture("No Image Selected");
-            } else {
-                this.failPicture("Selection did not complete!");
-            }
+
+        // If the activity was cancelled...
+        else if (resultCode == Activity.RESULT_CANCELED) {
+            final String errMsg = (srcType == CAMERA || requestCode >= CROP_CAMERA) ? "Camera cancelled." : "Selection cancelled.";
+            this.failPicture(errMsg);
+        }
+        // Something else...
+        else {
+            final String errMsg = (srcType == CAMERA || requestCode >= CROP_CAMERA) ? "Did not complete!" : "Selection did not complete!";
+            this.failPicture(errMsg);
         }
     }
 
