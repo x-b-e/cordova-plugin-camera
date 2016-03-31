@@ -82,6 +82,9 @@
             <string name="plugin_camera_get_picture">Get Picture</string>
             <string name="plugin_camera_get_video">Get Video</string>
             <string name="plugin_camera_get_all">Get All</string>
+            <string name="plugin_camera_permission_denied">Access to the camera or storage has been prohibited; please enable them in the Settings app to continue.</string>
+            <string name="plugin_camera_button_ok">OK</string>
+            <string name="plugin_camera_button_settings">Settings</string>
         </config-file>
      </platform>
 

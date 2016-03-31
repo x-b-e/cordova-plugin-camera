@@ -42,6 +42,9 @@ import org.json.JSONException;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.AlertDialog.Builder;
+import android.content.DialogInterface;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.ContentValues;
@@ -91,6 +94,8 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     public static final int PERMISSION_DENIED_ERROR = 20;
     public static final int TAKE_PIC_SEC = 0;
     public static final int SAVE_TO_ALBUM_SEC = 1;
+    public static final int SHOW_CHOOSER_SEC = 2;
+    public static final int ACTIVITY_CODE_SETTINGS = 1000;
 
     private static final String LOG_TAG = "CameraLauncher";
 
@@ -156,7 +161,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
              try {
                 if (this.srcType == CAMERA) {
                     if (this.showLibraryButton == true) {
-                        this.showIntentChooser(destType, encodingType);
+                        this.callShowIntentChooser(destType, encodingType);
                     }
                     else {
                         this.callTakePicture(destType, encodingType);
@@ -236,6 +241,51 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         android.content.res.Resources activityRes = cordova.getActivity().getResources();
         int stringResId = activityRes.getIdentifier(resourceName, "string", cordova.getActivity().getPackageName());
         return activityRes.getString(stringResId);
+    }
+
+    /**
+     * Wrapper to ensure we have the permissions necessary to show the intent
+     * chooser for camera and gallery options.
+     *
+     * @param returnType        The expected return type of the file.
+     * @param encodingType      Set the encoding of image to return.
+     */
+    public void callShowIntentChooser(int returnType, int encodingType) {
+        boolean saveAlbumPermission = PermissionHelper.hasPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE);
+        boolean takePicturePermission = PermissionHelper.hasPermission(this, Manifest.permission.CAMERA);
+
+        // CB-10120: The CAMERA permission does not need to be requested unless it is declared
+        // in AndroidManifest.xml. This plugin does not declare it, but others may and so we must
+        // check the package info to determine if the permission is present.
+
+        if (!takePicturePermission) {
+            takePicturePermission = true;
+            try {
+                PackageManager packageManager = this.cordova.getActivity().getPackageManager();
+                String[] permissionsInPackage = packageManager.getPackageInfo(this.cordova.getActivity().getPackageName(), PackageManager.GET_PERMISSIONS).requestedPermissions;
+                if (permissionsInPackage != null) {
+                    for (String permission : permissionsInPackage) {
+                        if (permission.equals(Manifest.permission.CAMERA)) {
+                            takePicturePermission = false;
+                            break;
+                        }
+                    }
+                }
+            } catch (NameNotFoundException e) {
+                // We are requesting the info for our package, so this should
+                // never be caught
+            }
+        }
+
+        if (takePicturePermission && saveAlbumPermission) {
+            showIntentChooser(returnType, encodingType);
+        } else if (saveAlbumPermission && !takePicturePermission) {
+            PermissionHelper.requestPermission(this, SHOW_CHOOSER_SEC, Manifest.permission.CAMERA);
+        } else if (!saveAlbumPermission && takePicturePermission) {
+            PermissionHelper.requestPermission(this, SHOW_CHOOSER_SEC, Manifest.permission.READ_EXTERNAL_STORAGE);
+        } else {
+            PermissionHelper.requestPermissions(this, SHOW_CHOOSER_SEC, permissions);
+        }
     }
 
     /**
@@ -1315,7 +1365,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         {
             if(r == PackageManager.PERMISSION_DENIED)
             {
-                this.callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.ERROR, PERMISSION_DENIED_ERROR));
+                showPermissionDeniedMessage();
                 return;
             }
         }
@@ -1327,7 +1377,50 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             case SAVE_TO_ALBUM_SEC:
                 this.getImage(this.srcType, this.destType, this.encodingType);
                 break;
+            case SHOW_CHOOSER_SEC:
+                showIntentChooser(this.destType, this.encodingType);
+                break;
         }
+    }
+
+    /**
+     * Shows a permission denied message
+     */
+    private void showPermissionDeniedMessage() {
+        final CordovaPlugin plugin = this;
+
+        Runnable runnable = new Runnable() {
+            public void run() {
+                AlertDialog.Builder dlg = new AlertDialog.Builder(plugin.cordova.getActivity());
+                dlg.setMessage(getStringResource("plugin_camera_permission_denied"));
+                dlg.setTitle(getStringResource("app_name"));
+                dlg.setCancelable(false);
+
+                // First button
+                dlg.setNegativeButton(getStringResource("plugin_camera_button_ok"),
+                    new AlertDialog.OnClickListener() {
+                        public void onClick(DialogInterface dialog, int which) {
+                            dialog.dismiss();
+                            callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.ERROR, PERMISSION_DENIED_ERROR));
+                        }
+                    });
+
+                // Second button: open settings
+                dlg.setNeutralButton(getStringResource("plugin_camera_button_settings"),
+                    new AlertDialog.OnClickListener() {
+                        public void onClick(DialogInterface dialog, int which) {
+                            Intent i = new Intent(android.provider.Settings.ACTION_SETTINGS);
+                            i.setAction("android.settings.APPLICATION_DETAILS_SETTINGS");
+                            i.setData(Uri.fromParts("package", cordova.getActivity().getPackageName(), null));
+                            plugin.cordova.startActivityForResult(plugin, i, ACTIVITY_CODE_SETTINGS);
+                        }
+                    });
+
+                dlg.create();
+                dlg.show();
+            };
+        };
+        this.cordova.getActivity().runOnUiThread(runnable);
     }
 
     /**

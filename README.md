@@ -73,20 +73,20 @@ Documentation consists of template and API docs produced from the plugin JS code
 
 
 * [camera](#module_camera)
-  * [.getPicture(successCallback, errorCallback, options)](#module_camera.getPicture)
-  * [.cleanup()](#module_camera.cleanup)
-  * [.onError](#module_camera.onError) : <code>function</code>
-  * [.onSuccess](#module_camera.onSuccess) : <code>function</code>
-  * [.CameraOptions](#module_camera.CameraOptions) : <code>Object</code>
+    * [.getPicture(successCallback, errorCallback, options)](#module_camera.getPicture)
+    * [.cleanup()](#module_camera.cleanup)
+    * [.onError](#module_camera.onError) : <code>function</code>
+    * [.onSuccess](#module_camera.onSuccess) : <code>function</code>
+    * [.CameraOptions](#module_camera.CameraOptions) : <code>Object</code>
 
 
 * [Camera](#module_Camera)
-  * [.DestinationType](#module_Camera.DestinationType) : <code>enum</code>
-  * [.EncodingType](#module_Camera.EncodingType) : <code>enum</code>
-  * [.MediaType](#module_Camera.MediaType) : <code>enum</code>
-  * [.PictureSourceType](#module_Camera.PictureSourceType) : <code>enum</code>
-  * [.PopoverArrowDirection](#module_Camera.PopoverArrowDirection) : <code>enum</code>
-  * [.Direction](#module_Camera.Direction) : <code>enum</code>
+    * [.DestinationType](#module_Camera.DestinationType) : <code>enum</code>
+    * [.EncodingType](#module_Camera.EncodingType) : <code>enum</code>
+    * [.MediaType](#module_Camera.MediaType) : <code>enum</code>
+    * [.PictureSourceType](#module_Camera.PictureSourceType) : <code>enum</code>
+    * [.PopoverArrowDirection](#module_Camera.PopoverArrowDirection) : <code>enum</code>
+    * [.Direction](#module_Camera.Direction) : <code>enum</code>
 
 * [CameraPopoverHandle](#module_CameraPopoverHandle)
 * [CameraPopoverOptions](#module_CameraPopoverOptions)
