@@ -504,7 +504,7 @@ static NSString* toBase64(NSData* data) {
             break;
     };
 
-    if (saveToPhotoAlbum && image) {
+    if (saveToPhotoAlbum && image && options.sourceType == UIImagePickerControllerSourceTypeCamera) {
         ALAssetsLibrary* library = [ALAssetsLibrary new];
         [library writeImageToSavedPhotosAlbum:image.CGImage orientation:(ALAssetOrientation)(image.imageOrientation) completionBlock:nil];
     }
@@ -721,7 +721,7 @@ static NSString* toBase64(NSData* data) {
     self.data = nil;
     self.metadata = nil;
 
-    if (options.saveToPhotoAlbum) {
+    if (options.saveToPhotoAlbum && options.sourceType == UIImagePickerControllerSourceTypeCamera) {
         ALAssetsLibrary *library = [ALAssetsLibrary new];
         [library writeImageDataToSavedPhotosAlbum:self.data metadata:self.metadata completionBlock:nil];
     }
@@ -947,6 +947,9 @@ static NSString* toBase64(NSData* data) {
 - (void)switchToCameraRoll {
     // Switch the UIImagePickerController to show the saved photos album
     self.sourceType = UIImagePickerControllerSourceTypeSavedPhotosAlbum;
+
+    // Update the options sourceType as well, so we correctly handle the saveToPhotoLibrary case
+    self.pictureOptions.sourceType = self.sourceType;
 }
 
 + (instancetype) createFromPictureOptions:(CDVPictureOptions*)pictureOptions;
