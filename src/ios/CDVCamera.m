@@ -376,7 +376,7 @@ static NSString* toBase64(NSData* data) {
                     self.metadata = [[NSMutableDictionary alloc] init];
 
                     NSMutableDictionary* EXIFDictionary = [[controllerMetadata objectForKey:(NSString*)kCGImagePropertyExifDictionary]mutableCopy];
-                    if (EXIFDictionary)	{
+                    if (EXIFDictionary) {
                         [self.metadata setObject:EXIFDictionary forKey:(NSString*)kCGImagePropertyExifDictionary];
                     }
 
@@ -763,6 +763,22 @@ static NSString* toBase64(NSData* data) {
     [super viewWillAppear:animated];
 }
 
+- (void)viewDidAppear:(BOOL)animated {
+    if (@available(iOS 11, *)) {
+        UILayoutGuide * guide = self.view.safeAreaLayoutGuide;
+        [self.cameraOverlayView.leadingAnchor constraintEqualToAnchor:guide.leadingAnchor].active = YES;
+        [self.cameraOverlayView.trailingAnchor constraintEqualToAnchor:guide.trailingAnchor].active = YES;
+        [self.cameraOverlayView.topAnchor constraintEqualToAnchor:guide.topAnchor].active = YES;
+        [self.cameraOverlayView.bottomAnchor constraintEqualToAnchor:guide.bottomAnchor].active = YES;
+    } else {
+        UILayoutGuide *margins = self.view.layoutMarginsGuide;
+        [self.cameraOverlayView.leadingAnchor constraintEqualToAnchor:margins.leadingAnchor].active = YES;
+        [self.cameraOverlayView.trailingAnchor constraintEqualToAnchor:margins.trailingAnchor].active = YES;
+        [self.cameraOverlayView.topAnchor constraintEqualToAnchor:self.topLayoutGuide.bottomAnchor].active = YES;
+        [self.cameraOverlayView.bottomAnchor constraintEqualToAnchor:self.bottomLayoutGuide.topAnchor].active = YES;
+    }
+}
+
 - (void)viewDidDisappear:(BOOL)animated {
     if (self.pictureOptions.showLibraryButton) {
         [[NSNotificationCenter defaultCenter] removeObserver:self];
@@ -792,7 +808,8 @@ static NSString* toBase64(NSData* data) {
     
     // Make sure the view auto-resizes when the orientation changes
     overlay.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
-    
+    [overlay setTranslatesAutoresizingMaskIntoConstraints:NO];
+
     // Add a button to allow access to the camera roll
     UIButton *libraryButton = [UIButton buttonWithType:UIButtonTypeCustom];
     libraryButton.backgroundColor = [UIColor clearColor];
@@ -808,7 +825,7 @@ static NSString* toBase64(NSData* data) {
     [libraryButton setTranslatesAutoresizingMaskIntoConstraints:NO];
 
     // Set the image to the most recent one in the Camera Roll
-    [self setImageFromCameraRoll:libraryButton];
+    //[self setImageFromCameraRoll:libraryButton];
     
     // Add the button to the overlay
     [overlay addSubview:libraryButton];
@@ -824,7 +841,7 @@ static NSString* toBase64(NSData* data) {
                                                         relatedBy:NSLayoutRelationEqual
                                                            toItem:overlay
                                                         attribute:NSLayoutAttributeCenterY
-                                                       multiplier:1.5
+                                                       multiplier:1.6
                                                          constant:0];
     }
     // Positioning for iPhone
@@ -835,34 +852,28 @@ static NSString* toBase64(NSData* data) {
         
         // On screens >480px tall, the controls are bigger
         int limit = MAX(mainScreenHeight,mainScreenWidth);
-        int bottomOffset;
+        int topOffset;
         
         // Determine the bottom offset based on the device screen size
         switch (limit) {
             case 480:
             case 568:
-                bottomOffset = -7;
-                break;
-                
             case 667:
-                bottomOffset = -18;
-                break;
-
             case 736:
             default:
-                bottomOffset = -27;
+                topOffset = -8;
                 break;
         
         }
 
         rightOffset = -13;
         bottomConstraint = [NSLayoutConstraint constraintWithItem:libraryButton
-                                                        attribute:NSLayoutAttributeBottom
+                                                        attribute:NSLayoutAttributeTop
                                                         relatedBy:NSLayoutRelationEqual
                                                            toItem:overlay
-                                                        attribute:NSLayoutAttributeBottom
+                                                        attribute:NSLayoutAttributeTop
                                                        multiplier:1
-                                                         constant:bottomOffset];
+                                                         constant:topOffset];
     }
     
     // Add auto-layout constraints to keep the size and position of the button correct on all devices
