@@ -858,16 +858,19 @@ static NSString* toBase64(NSData* data) {
         
         // Determine the bottom offset based on the device screen size
         switch (limit) {
+            case 812: // iPhone X
+                topOffset = -20;
+                break;
             case 480:
             case 568:
             case 667:
             case 736:
             default:
-                topOffset = -8;
+                topOffset = -10;
                 break;
-        
         }
 
+        NSLog(@"createOverlayView: top offset %d", topOffset);
         rightOffset = -13;
         bottomConstraint = [NSLayoutConstraint constraintWithItem:libraryButton
                                                         attribute:NSLayoutAttributeTop
