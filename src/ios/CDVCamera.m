@@ -765,18 +765,20 @@ static NSString* toBase64(NSData* data) {
 }
 
 - (void)viewDidAppear:(BOOL)animated {
-    if (@available(iOS 11, *)) {
-        UILayoutGuide * guide = self.view.safeAreaLayoutGuide;
-        [self.cameraOverlayView.leadingAnchor constraintEqualToAnchor:guide.leadingAnchor].active = YES;
-        [self.cameraOverlayView.trailingAnchor constraintEqualToAnchor:guide.trailingAnchor].active = YES;
-        [self.cameraOverlayView.topAnchor constraintEqualToAnchor:guide.topAnchor].active = YES;
-        [self.cameraOverlayView.bottomAnchor constraintEqualToAnchor:guide.bottomAnchor].active = YES;
-    } else {
-        UILayoutGuide *margins = self.view.layoutMarginsGuide;
-        [self.cameraOverlayView.leadingAnchor constraintEqualToAnchor:margins.leadingAnchor].active = YES;
-        [self.cameraOverlayView.trailingAnchor constraintEqualToAnchor:margins.trailingAnchor].active = YES;
-        [self.cameraOverlayView.topAnchor constraintEqualToAnchor:self.topLayoutGuide.bottomAnchor].active = YES;
-        [self.cameraOverlayView.bottomAnchor constraintEqualToAnchor:self.bottomLayoutGuide.topAnchor].active = YES;
+    if (self.sourceType == UIImagePickerControllerSourceTypeCamera) {
+        if (@available(iOS 11, *)) {
+            UILayoutGuide * guide = self.view.safeAreaLayoutGuide;
+            [self.cameraOverlayView.leadingAnchor constraintEqualToAnchor:guide.leadingAnchor].active = YES;
+            [self.cameraOverlayView.trailingAnchor constraintEqualToAnchor:guide.trailingAnchor].active = YES;
+            [self.cameraOverlayView.topAnchor constraintEqualToAnchor:guide.topAnchor].active = YES;
+            [self.cameraOverlayView.bottomAnchor constraintEqualToAnchor:guide.bottomAnchor].active = YES;
+        } else {
+            UILayoutGuide *margins = self.view.layoutMarginsGuide;
+            [self.cameraOverlayView.leadingAnchor constraintEqualToAnchor:margins.leadingAnchor].active = YES;
+            [self.cameraOverlayView.trailingAnchor constraintEqualToAnchor:margins.trailingAnchor].active = YES;
+            [self.cameraOverlayView.topAnchor constraintEqualToAnchor:self.topLayoutGuide.bottomAnchor].active = YES;
+            [self.cameraOverlayView.bottomAnchor constraintEqualToAnchor:self.bottomLayoutGuide.topAnchor].active = YES;
+        }
     }
 }
 
