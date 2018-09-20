@@ -328,7 +328,8 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             final Intent intent = new Intent(captureIntent);
             intent.setComponent(new ComponentName(res.activityInfo.packageName, res.activityInfo.name));
             intent.setPackage(res.activityInfo.packageName);
-            intent.putExtra(MediaStore.EXTRA_OUTPUT, this.imageUri);
+            intent.putExtra(MediaStore.EXTRA_OUTPUT, this.imageUri.getCorrectUri());
+            intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
             cameraIntents.add(intent);
         }
 
@@ -358,8 +359,12 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
         // Specify file so that large image is captured and returned
         final File photo = createCaptureFile(encodingType);
-        this.imageUri = Uri.fromFile(photo);
-        intent.putExtra(MediaStore.EXTRA_OUTPUT, this.imageUri);
+        this.imageUri = new CordovaUri(FileProvider.getUriForFile(cordova.getActivity(),
+                applicationId + ".provider",
+                photo));
+        intent.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, this.imageUri.getCorrectUri());
+        //We can write to this URI, this will hopefully allow us to write files to get to the next step
+        intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
 
         return intent;
     }
@@ -470,15 +475,6 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
         // Let's get the camera intent
         Intent intent = getCameraIntent(encodingType);
-
-        // Specify file so that large image is captured and returned
-        File photo = createCaptureFile(encodingType);
-        this.imageUri = new CordovaUri(FileProvider.getUriForFile(cordova.getActivity(),
-                applicationId + ".provider",
-                photo));
-        intent.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, imageUri.getCorrectUri());
-        //We can write to this URI, this will hopefully allow us to write files to get to the next step
-        intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
 
         if (this.cordova != null) {
             // Let's check to make sure the camera is actually installed. (Legacy Nexus 7 code)
