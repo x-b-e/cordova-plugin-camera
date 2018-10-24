@@ -833,19 +833,14 @@ static NSString* toBase64(NSData* data) {
     // Add the button to the overlay
     [overlay addSubview:libraryButton];
     
+    int topOffset = 0;
     int rightOffset = 0;
-    NSLayoutConstraint *bottomConstraint;
     
     // Positioning for iPad
     if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        // Top right positioning for iPad, similar to iPhone but scale is slightly different
         rightOffset = -21;
-        bottomConstraint = [NSLayoutConstraint constraintWithItem:libraryButton
-                                                        attribute:NSLayoutAttributeCenterY
-                                                        relatedBy:NSLayoutRelationEqual
-                                                           toItem:overlay
-                                                        attribute:NSLayoutAttributeCenterY
-                                                       multiplier:1.6
-                                                         constant:0];
+        topOffset = 5;
     }
     // Positioning for iPhone
     else {
@@ -855,8 +850,9 @@ static NSString* toBase64(NSData* data) {
         
         // On screens >480px tall, the controls are bigger
         int limit = MAX(mainScreenHeight,mainScreenWidth);
-        int topOffset;
-        
+
+        rightOffset = -13;
+
         // Determine the bottom offset based on the device screen size
         switch (limit) {
             case 812: // iPhone X
@@ -870,17 +866,9 @@ static NSString* toBase64(NSData* data) {
                 topOffset = -10;
                 break;
         }
-
-        NSLog(@"createOverlayView: top offset %d", topOffset);
-        rightOffset = -13;
-        bottomConstraint = [NSLayoutConstraint constraintWithItem:libraryButton
-                                                        attribute:NSLayoutAttributeTop
-                                                        relatedBy:NSLayoutRelationEqual
-                                                           toItem:overlay
-                                                        attribute:NSLayoutAttributeTop
-                                                       multiplier:1
-                                                         constant:topOffset];
     }
+    
+    NSLog(@"createOverlayView: top offset %d", topOffset);
     
     // Add auto-layout constraints to keep the size and position of the button correct on all devices
     [overlay addConstraints:@[
@@ -907,7 +895,13 @@ static NSString* toBase64(NSData* data) {
                                                            attribute:NSLayoutAttributeRight
                                                           multiplier:1
                                                             constant:rightOffset],
-                              bottomConstraint
+                              [NSLayoutConstraint constraintWithItem:libraryButton
+                                                           attribute:NSLayoutAttributeTop
+                                                           relatedBy:NSLayoutRelationEqual
+                                                              toItem:overlay
+                                                           attribute:NSLayoutAttributeTop
+                                                          multiplier:1
+                                                            constant:topOffset]
                               ]];
     
     return overlay;
