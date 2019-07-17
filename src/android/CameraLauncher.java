@@ -362,7 +362,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         this.imageUri = new CordovaUri(FileProvider.getUriForFile(cordova.getActivity(),
                 applicationId + ".provider",
                 photo));
-        intent.putExtra(MediaStore.EXTRA_OUTPUT, this.imageUri);
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri.getCorrectUri());
         //We can write to this URI, this will hopefully allow us to write files to get to the next step
         intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
 
@@ -553,56 +553,56 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     }
 
 
-	/**
+    /**
     * Brings up the UI to perform crop on passed image URI
     *
     * @param picUri
     */
     private void performCrop(Uri picUri, int destType, Intent cameraIntent) {
-		try {
-			Intent cropIntent = new Intent("com.android.camera.action.CROP");
-			// indicate image type and Uri
-			cropIntent.setDataAndType(picUri, "image/*");
-			// set crop properties
-			cropIntent.putExtra("crop", "true");
+        try {
+            Intent cropIntent = new Intent("com.android.camera.action.CROP");
+            // indicate image type and Uri
+            cropIntent.setDataAndType(picUri, "image/*");
+            // set crop properties
+            cropIntent.putExtra("crop", "true");
 
 
-			// indicate output X and Y
-			if (targetWidth > 0) {
-			        cropIntent.putExtra("outputX", targetWidth);
-			}
-			if (targetHeight > 0) {
-			        cropIntent.putExtra("outputY", targetHeight);
-			}
-			if (targetHeight > 0 && targetWidth > 0 && targetWidth == targetHeight) {
-			        cropIntent.putExtra("aspectX", 1);
-			        cropIntent.putExtra("aspectY", 1);
-			}
-			// create new file handle to get full resolution crop
-			croppedUri = Uri.fromFile(createCaptureFile(this.encodingType, System.currentTimeMillis() + ""));
-			cropIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-			cropIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-			cropIntent.putExtra("output", croppedUri);
+            // indicate output X and Y
+            if (targetWidth > 0) {
+                    cropIntent.putExtra("outputX", targetWidth);
+            }
+            if (targetHeight > 0) {
+                    cropIntent.putExtra("outputY", targetHeight);
+            }
+            if (targetHeight > 0 && targetWidth > 0 && targetWidth == targetHeight) {
+                    cropIntent.putExtra("aspectX", 1);
+                    cropIntent.putExtra("aspectY", 1);
+            }
+            // create new file handle to get full resolution crop
+            croppedUri = Uri.fromFile(createCaptureFile(this.encodingType, System.currentTimeMillis() + ""));
+            cropIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            cropIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            cropIntent.putExtra("output", croppedUri);
 
 
-			// start the activity - we handle returning in onActivityResult
+            // start the activity - we handle returning in onActivityResult
 
-			if (this.cordova != null) {
-				this.cordova.startActivityForResult((CordovaPlugin) this,
-				    cropIntent, CROP_CAMERA + destType);
-			}
-		} catch (ActivityNotFoundException anfe) {
-			LOG.e(LOG_TAG, "Crop operation not supported on this device");
-	    	try {
-				processResultFromCamera(destType, cameraIntent);
-	        }
-	        catch (IOException e)
-	        {
-	        	e.printStackTrace();
-	        	LOG.e(LOG_TAG, "Unable to write to file");
-	        }
-	    }
-	}
+            if (this.cordova != null) {
+                this.cordova.startActivityForResult((CordovaPlugin) this,
+                    cropIntent, CROP_CAMERA + destType);
+            }
+        } catch (ActivityNotFoundException anfe) {
+            LOG.e(LOG_TAG, "Crop operation not supported on this device");
+            try {
+                processResultFromCamera(destType, cameraIntent);
+            }
+            catch (IOException e)
+            {
+                e.printStackTrace();
+                LOG.e(LOG_TAG, "Unable to write to file");
+            }
+        }
+    }
 
     /**
      * Applies all needed transformation to the image received from the camera.
