@@ -261,15 +261,17 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     }
 
     /**
-     * Wrapper to ensure we have the permissions necessary to show the intent
-     * chooser for camera and gallery options.
-     *
-     * @param returnType        The expected return type of the file.
-     * @param encodingType      Set the encoding of image to return.
+     * Helper to check permissions for taking pictures
      */
-    public void callShowIntentChooser(int returnType, int encodingType) {
-        boolean saveAlbumPermission = PermissionHelper.hasPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE);
+    private boolean checkCameraPermissions(int requestCode) {
+        boolean saveAlbumPermission = PermissionHelper.hasPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
+                && PermissionHelper.hasPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE);
         boolean takePicturePermission = PermissionHelper.hasPermission(this, Manifest.permission.CAMERA);
+
+        LOG.d(LOG_TAG, "Permission Check:");
+        LOG.d(LOG_TAG, "  READ: " + PermissionHelper.hasPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE));
+        LOG.d(LOG_TAG, "  WRITE: " + PermissionHelper.hasPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE));
+        LOG.d(LOG_TAG, "  CAMERA: " + PermissionHelper.hasPermission(this, Manifest.permission.CAMERA));
 
         // CB-10120: The CAMERA permission does not need to be requested unless it is declared
         // in AndroidManifest.xml. This plugin does not declare it, but others may and so we must
@@ -295,13 +297,31 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         }
 
         if (takePicturePermission && saveAlbumPermission) {
-            showIntentChooser(returnType, encodingType);
+            return true;
         } else if (saveAlbumPermission && !takePicturePermission) {
-            PermissionHelper.requestPermission(this, SHOW_CHOOSER_SEC, Manifest.permission.CAMERA);
+            PermissionHelper.requestPermission(this, requestCode, Manifest.permission.CAMERA);
         } else if (!saveAlbumPermission && takePicturePermission) {
-            PermissionHelper.requestPermission(this, SHOW_CHOOSER_SEC, Manifest.permission.READ_EXTERNAL_STORAGE);
+            PermissionHelper.requestPermissions(this, requestCode,
+                    new String[]{Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE});
         } else {
-            PermissionHelper.requestPermissions(this, SHOW_CHOOSER_SEC, permissions);
+            PermissionHelper.requestPermissions(this, requestCode, permissions);
+        }
+        return false;
+    }
+
+    /**
+     * Wrapper to ensure we have the permissions necessary to show the intent
+     * chooser for camera and gallery options.
+     *
+     * @param returnType        The expected return type of the file.
+     * @param encodingType      Set the encoding of image to return.
+     */
+    public void callShowIntentChooser(int returnType, int encodingType) {
+        LOG.d(LOG_TAG, "callShowIntentChooser");
+
+        // If we have necessary permissions, then take the picture
+        if (checkCameraPermissions(SHOW_CHOOSER_SEC)) {
+            showIntentChooser(returnType, encodingType);
         }
     }
 
@@ -313,6 +333,8 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
      * @param encodingType      Set the encoding of image to return.
      */
     public void showIntentChooser(int returnType, int encodingType) {
+        LOG.d(LOG_TAG, "showIntentChooser");
+
         if (this.cordova == null) return;
 
         final PackageManager mPm = this.cordova.getActivity().getPackageManager();
@@ -331,6 +353,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             intent.putExtra(MediaStore.EXTRA_OUTPUT, this.imageUri.getCorrectUri());
             intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
             cameraIntents.add(intent);
+            LOG.d(LOG_TAG, "Found Camera App: %s [%s]", res.activityInfo.name, res.activityInfo.packageName);
         }
 
         // Store the Gallery intents
@@ -341,7 +364,8 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
         // Add the camera intents as extra intents in the chooser
         chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, cameraIntents.toArray(new Parcelable[cameraIntents.size()]));
-
+        
+        LOG.d(LOG_TAG, "Starting Chooser");
         this.cordova.startActivityForResult(this, chooserIntent, SOURCE_CHOOSER + returnType);
     }
 
@@ -429,47 +453,18 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
      * @param encodingType           Compression quality hint (0-100: 0=low quality & high compression, 100=compress of max quality)
      */
     public void callTakePicture(int returnType, int encodingType) {
-        boolean saveAlbumPermission = PermissionHelper.hasPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
-                && PermissionHelper.hasPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE);
-        boolean takePicturePermission = PermissionHelper.hasPermission(this, Manifest.permission.CAMERA);
+        LOG.d(LOG_TAG, "callTakePicture");
 
-        // CB-10120: The CAMERA permission does not need to be requested unless it is declared
-        // in AndroidManifest.xml. This plugin does not declare it, but others may and so we must
-        // check the package info to determine if the permission is present.
-
-        if (!takePicturePermission) {
-            takePicturePermission = true;
-            try {
-                PackageManager packageManager = this.cordova.getActivity().getPackageManager();
-                String[] permissionsInPackage = packageManager.getPackageInfo(this.cordova.getActivity().getPackageName(), PackageManager.GET_PERMISSIONS).requestedPermissions;
-                if (permissionsInPackage != null) {
-                    for (String permission : permissionsInPackage) {
-                        if (permission.equals(Manifest.permission.CAMERA)) {
-                            takePicturePermission = false;
-                            break;
-                        }
-                    }
-                }
-            } catch (NameNotFoundException e) {
-                // We are requesting the info for our package, so this should
-                // never be caught
-            }
-        }
-
-        if (takePicturePermission && saveAlbumPermission) {
+        // If we have necessary permissions, then take the picture
+        if (checkCameraPermissions(TAKE_PIC_SEC)) {
             takePicture(returnType, encodingType);
-        } else if (saveAlbumPermission && !takePicturePermission) {
-            PermissionHelper.requestPermission(this, TAKE_PIC_SEC, Manifest.permission.CAMERA);
-        } else if (!saveAlbumPermission && takePicturePermission) {
-            PermissionHelper.requestPermissions(this, TAKE_PIC_SEC,
-                    new String[]{Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE});
-        } else {
-            PermissionHelper.requestPermissions(this, TAKE_PIC_SEC, permissions);
         }
     }
 
     public void takePicture(int returnType, int encodingType)
     {
+        LOG.d(LOG_TAG, "takePicture");
+
         // Save the number of images currently on disk for later
         this.numPics = queryImgDB(whichContentStore()).getCount();
 
@@ -611,6 +606,8 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
      * @param intent            An Intent, which can return result data to the caller (various data can be attached to Intent "extras").
      */
     private void processResultFromCamera(int destType, Intent intent) throws IOException {
+        LOG.d(LOG_TAG, "processResultFromCamera");
+
         int rotate = 0;
 
         // Create an ExifHelper to save the exif data that is lost during compression
@@ -816,6 +813,8 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
      * @param intent   An Intent, which can return result data to the caller (various data can be attached to Intent "extras").
      */
     private void processResultFromGallery(int destType, Intent intent) {
+        LOG.d(LOG_TAG, "processResultFromGallery");
+
         Uri uri = intent.getData();
         if (uri == null) {
             if (croppedUri != null) {
@@ -904,6 +903,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
      * @param intent      An Intent, which can return result data to the caller (various data can be attached to Intent "extras").
      */
     public void onActivityResult(int requestCode, int resultCode, Intent intent) {
+        LOG.d(LOG_TAG, "onActivityResult %d %d", requestCode, resultCode);
 
         // Get src and dest types from request code for a Camera Activity
         int srcType = (requestCode / 16) - 1;
