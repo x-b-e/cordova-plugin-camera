@@ -278,7 +278,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             final Intent intent = new Intent(captureIntent);
             intent.setComponent(new ComponentName(res.activityInfo.packageName, res.activityInfo.name));
             intent.setPackage(res.activityInfo.packageName);
-            intent.putExtra(MediaStore.EXTRA_OUTPUT, this.imageUri);
+            intent.putExtra(MediaStore.EXTRA_OUTPUT, this.imageUri.getCorrectUri());
             cameraIntents.add(intent);
         }
 
@@ -308,8 +308,10 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
         // Specify file so that large image is captured and returned
         final File photo = createCaptureFile(encodingType);
-        this.imageUri = Uri.fromFile(photo);
-        intent.putExtra(MediaStore.EXTRA_OUTPUT, this.imageUri);
+        this.imageUri = new CordovaUri(FileProvider.getUriForFile(cordova.getActivity(),
+          applicationId + ".provider",
+          photo));
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, this.imageUri.getCorrectUri());
 
         return intent;
     }
@@ -574,13 +576,12 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
         String sourcePath = (this.allowEdit && this.croppedUri != null) ?
                 FileHelper.stripFileProtocol(this.croppedUri.toString()) :
-                this.imageUri.getFilePath();
-
+          this.imageUri.getFileUri().toString();
 
         if (this.encodingType == JPEG) {
             try {
                 //We don't support PNG, so let's not pretend we do
-                exif.createInFile(sourcePath);
+                exif.createInFile(this.imageUri.getFileUri().toString());
                 exif.readExifData();
                 rotate = exif.getOrientation();
 
@@ -934,6 +935,17 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
         // If the activity was cancelled...
         else if (resultCode == Activity.RESULT_CANCELED) {
+          if (srcType == CAMERA) {
+            if (resultCode == 0) {
+              try {
+
+                LOG.d(LOG_TAG, "requestCode: "+ requestCode);
+              LOG.d(LOG_TAG, "destType: "+ destType);
+                LOG.d(LOG_TAG, "intent: "+ intent);
+                processResultFromCamera(destType, intent);
+              } catch (IOException e) {}
+            }
+          }
             final String errMsg = (srcType == CAMERA || requestCode >= CROP_CAMERA) ? "Camera cancelled." : "Selection cancelled.";
             this.failPicture(errMsg);
         }
